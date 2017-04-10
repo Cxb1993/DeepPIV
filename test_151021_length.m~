@@ -1,0 +1,97 @@
+clc; clear; close all; warning('off');tic
+
+dataset='150811_SC1ATK50+1_BathoStyg_5_clip';
+display(dataset);
+
+val=10;
+vel=10; %mm/s %UNKNOWN
+percent=0.1; %percent allowable change in imwarp transform
+inc=1;
+
+%retrieving data set-specific parameters
+% [dir,start,finish,fps,fstop,shutter,calib,red,aspectratio,contrast]=videoinfo(dataset,vel);
+dir='/users/kakani/desktop/';
+start=1;
+finish=89;
+viddir=[dir,'clips/'];
+indir=[dir,'input/'];
+outdir=[dir,'output/'];
+nFrames=finish-start;
+length=5;
+%% arranging planar cross sections into "volume" matrix
+vid=VideoReader([viddir,dataset,'.mov']);
+im_file=[indir,dataset,num2str(vel),'vel_IMAGE.mat'];
+% im_file=[indir,dataset,'_IMAGE.mat'];
+load(im_file);                 %if exists, load original image stack
+%%
+for i=1:5:size(IMAGE,3)-length+1
+%     imstr=IMAGE(:,:,i);
+    imstr=max(IMAGE(:,:,i),IMAGE(:,:,i+1));
+    for j=2:1:length-1
+        imstr=max(imstr,IMAGE(:,:,i+j));
+    end
+    imnew=imadjust(imstr,[0,0.3],[0,1]);
+    mask=bwareaopen(imnew>170,25);
+    imstrnew=imnew.*uint8(mask);
+    figure(1)
+    imshow([imnew,mask*255,imstrnew])
+    if i==1
+        imshow(mask)
+        pts=ginput(2);
+        xpts=pts(1,1):5:pts(2,1);
+        m=(pts(2,2)-pts(1,2))/(pts(2,1)-pts(1,1));
+        b=pts(1,2)-m*pts(1,1);
+        ypts=m*xpts+b;
+    end
+    BW=bwlabel(mask,4);
+    label=bwconncomp(mask,4);
+    s=regionprops(label,'Centroid','Area');
+    index=[];
+    for k=1:1:size(s,1)
+        for j=1:1:size(xpts,2)
+            cent=s(k).Centroid;
+            dist=sqrt((cent(1,1)-xpts(1,j))^2+(cent(1,2)-ypts(1,j))^2);
+            if dist<50
+                index=[index,k];
+            end
+        end
+    end
+    index=unique(index);
+    im=BW*0;
+    for j=1:1:size(index,2)
+        im=max(im,BW==index(j));
+    end
+    figure(2)
+    imshowpair(imstrnew,im)
+    hold on
+    plot(xpts,ypts,'r*')
+    hold off
+    pause()
+end
+
+% BW=bwlabel(mask,4);
+% label=bwconncomp(mask,4);
+% s=regionprops(label,'Centroid','Area');
+% 
+% %%
+% index=[];
+% for i=1:1:size(s,1)
+%     for j=1:1:size(xpts,2)
+%         cent=s(i).Centroid;
+%         dist=sqrt((cent(1,1)-xpts(1,j))^2+(cent(1,2)-ypts(1,j))^2);
+%         if dist<50
+%             index=[index,i];
+%         end
+%     end
+% end
+% 
+% %%
+% im=BW*0;
+% for i=1:1:size(index,2)
+%     im=max(im,BW==index(i));
+% end
+% figure(1)
+% imshowpair(imstrnew,im)
+% hold on
+% plot(xpts,ypts,'r*')
+% hold off
